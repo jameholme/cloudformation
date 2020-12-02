@@ -1,0 +1,268 @@
+Description:  Creates a VPC with 1 Public Subnet, 2 Private Subnets, required Internet and NAT Gateways, Route Tables, and Security Groups.
+# Feel free to replace "PublicSubnet" with a more desirable name for your Public Subnet
+# You can also replace "PrivateSubnet1" and "PrivateSubnet2" with more desirable names
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: Main-VPC
+
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.0.0.0/16
+
+  PublicSubnetCIDR:
+    Description: Please enter the IP range (CIDR notation) for the Subnet (Public)
+    Type: String
+    Default: 10.0.0.0/24
+
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the Subnet (Private 1)
+    Type: String
+    Default: 10.0.1.0/24
+
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the Subnet (Private 2)
+    Type: String
+    Default: 10.0.2.0/24
+
+Resources:
+# Network Configurations
+# VPC Configuration
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Internet Gateway
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  NATGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} NAT Gateway EIP
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayEIP.AllocationId
+      SubnetId: !Ref InternetSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} NAT Gateway
+  
+# Route Tables    
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Routes
+
+  DefaultPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+  
+# Route Table Associations
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+  
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
+ 
+# Subnet Defintions
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref PublicSubnetCIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+          - Key: Name
+            Value: !Sub ${EnvironmentName} Public Subnet
+  
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet 1
+  
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet 2
+
+# Security Groups:
+# Public Subnet Security Groups
+  PublicSubnet1NameSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Public Subnet Security Group
+        GroupName: !Sub ${EnvironmentName} Public Subnet Security Group
+        VpcId: !Ref VPC
+        Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet Security Group
+        SecurityGroupIngress:
+        # Allows HTTP/HTTPS, SSH and RDP inbound on the Public Subnet (This might want to be tightened down)
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+        SecurityGroupEgress:
+        # Allows all outbound traffic
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+# Private Subnet 1 Security Groups
+  PrivateSubnet1NameSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Private Subnet 1 Security Group
+        GroupName: !Sub ${EnvironmentName} Private Subnet 1 Security Group
+        VpcId: !Ref VPC
+        Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet 1 Security Group
+        SecurityGroupIngress:
+        # Allow all inbound traffic between Private Subnet 1 and Public Subnet
+        - IpProtocol: -1
+          CidrIp: !Ref PrivateSubnet1CIDR
+        - IpProtocol: -1
+          CidrIp: !Ref PublicSubnetCIDR
+        SecurityGroupEgress:
+        # Allow all outbound traffic
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+# Private Subnet 2 Security Groups
+  PrivateSubnet2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Private Subnet 2 Security Group
+        GroupName: !Sub ${EnvironmentName} Private Subnet 2 Security Group
+        VpcId: !Ref VPC
+        Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet 2 Security Group
+        SecurityGroupIngress:
+        # Allow all inbound traffic between Private Subnet 2 and Public Subnet
+        - IpProtocol: -1
+          CidrIp: !Ref PrivateSubnet2CIDR
+        - IpProtocol: -1
+          CidrIp: !Ref VpcCIDR
+        SecurityGroupEgress:
+        # Allow all outbound traffic
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+# Outputs and Exports
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+
+  PublicSubnets:
+    Description: A list of the public subnets
+    Value: !Ref PublicSubnet
+
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+
+  PublicSubnet:
+    Description: A reference to the PublicSubnet1Name Subnet
+    Value: !Ref PublicSubnet
+
+  PrivateSubnet1:
+    Description: A reference to the Private Subnet 1 Subnet
+    Value: !Ref PrivateSubnet1
+
+  PrivateSubnet2:
+    Description: A reference to the PrivateSubnet2 Subnet
+    Value: !Ref PrivateSubnet2
