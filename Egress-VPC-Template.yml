@@ -67,7 +67,7 @@ Resources:
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt NATGatewayEIP.AllocationId
-      SubnetId: !Ref InternetSubnet
+      SubnetId: !Ref PublicSubnet
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName} NAT Gateway
@@ -275,7 +275,7 @@ Outputs:
     Export:
         Name: Egress-Private-Subnet-2
 
-   NATGateway:
+  NATGateway:
     Description: A reference to the NAT Gateway
     Value: !Ref NATGateway
     Export:
