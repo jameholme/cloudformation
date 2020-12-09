@@ -1,0 +1,124 @@
+Description: A VPC for your application(s) designed to route out of a TGW
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: App1-VPC
+
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 172.16.0.0/16
+
+  App1Subnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the Subnet (Private 1)
+    Type: String
+    Default: 172.16.1.0/24
+
+  App2Subnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the Subnet (Private 2)
+    Type: String
+    Default: 172.16.2.0/24
+
+# App VPC and Subnet Creation
+Resources:
+  App1VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-VPC
+  App1Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref App1VPC
+      CidrBlock: !Ref App1Subnet1CIDR
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: ""
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Private-AZ1
+  App1Subnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref App1VPC
+      CidrBlock: !Ref App2Subnet2CIDR
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: ""
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Private-AZ2
+  App1RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref App1VPC
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PrivateRouteTable
+  App1Subnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref App1Subnet1
+      RouteTableId: !Ref App1RouteTable
+  App1Subnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref App1Subnet2
+      RouteTableId: !Ref App1RouteTable
+
+Outputs:
+  ExportApp1VPC:
+    Description: A reference to the created VPC
+    Value: !Ref App1VPC
+    Export:
+        Name: App1VPC
+
+  ExportApp1VPCCIDR:
+    Description: A reference to the created VPC
+    Value: !Ref VpcCIDR
+    Export:
+        Name: App1VPCCIDR
+
+  ExportApp1Subnet1:
+    Description: A reference to App1Subnet1
+    Value: !Ref App1Subnet1
+    Export:
+        Name: App1Subnet1
+
+  ExportApp1Subnet1CIDR:
+    Description: A reference to App1Subnet1 CIDR Block
+    Value: !Ref App1Subnet1CIDR
+    Export:
+        Name: App1App1Subnet1CIDR
+    
+  ExportApp1Subnet2:
+    Description: A reference to the App1Subnet2
+    Value: !Ref App1Subnet2
+    Export:
+        Name: App1Subnet2
+
+  ExportApp2Subnet2CIDR:
+    Description: A reference to App1Subnet2 CIDR Block
+    Value: !Ref App2Subnet2CIDR
+    Export:
+        Name: App1App2Subnet2CIDR
+
+  ExportApp1RouteTable:
+    Description: A reference to App1RouteTable
+    Value: !Ref App1RouteTable
+    Export:
+        Name: App1RouteTable
